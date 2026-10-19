@@ -13,7 +13,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: kontrol
+  group: kontrol-${{ inputs.test_mail && 'test' || 'loop' }}
   cancel-in-progress: false
 jobs:
   kontrol:
