@@ -1,34 +1,39 @@
 name: Parfum kontrol
+# Her calisma ~5 saat 45 dk boyunca dakikada bir kontrol eder.
+# Zamanlayici her 5 dk bir yenisini kuyruga koyar; biri bitince digeri hemen baslar.
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       test_mail:
-        description: "Test e-postasi gonder"
+        description: "Sadece test e-postasi gonder"
         type: boolean
         default: false
 permissions:
   contents: write
-concurrency: kontrol
+concurrency:
+  group: kontrol
+  cancel-in-progress: false
 jobs:
   kontrol:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Kontrol
+      - name: Kontrol (dakikada bir)
         env:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-        run: python kontrol.py ${{ inputs.test_mail && '--test-mail' || '' }}
-      - name: Durumu kaydet
         run: |
           git config user.name "parfum-bot"
           git config user.email "parfum-bot@users.noreply.github.com"
-          git add bilinen_urunler.json yeni_urunler.log 2>/dev/null || git add bilinen_urunler.json
-          git diff --cached --quiet || (git commit -m "Yeni urunler" && git push)
+          if [ "${{ inputs.test_mail }}" = "true" ]; then
+            python kontrol.py --test-mail
+          else
+            python kontrol.py --loop 345 --git
+          fi

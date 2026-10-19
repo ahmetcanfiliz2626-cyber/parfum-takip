@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """dekantparfumdepo.com'a yeni eklenen ürünleri bulur, bildirim ve e-posta gönderir."""
-import json, os, re, smtplib, sys, urllib.request, html
+import json, os, re, smtplib, subprocess, sys, time, urllib.request, html
 from email.mime.text import MIMEText
 from datetime import datetime
 
@@ -49,7 +49,7 @@ def main():
         print(f"İlk çalıştırma: {len(urls)} ürün kaydedildi, bundan sonra yeniler bildirilecek.")
         return
     if not new:
-        print(f"{datetime.now():%Y-%m-%d %H:%M} yeni ürün yok ({len(urls)} ürün).")
+        print(f"{datetime.now():%Y-%m-%d %H:%M} yeni ürün yok ({len(urls)} ürün).", flush=True)
         return
     lines = []
     for u in new:
@@ -62,5 +62,27 @@ def main():
     send_mail(f"Dekant Parfüm Depo: {len(new)} yeni parfüm", body)
     print("E-posta gönderildi.")
 
+def save_to_git():
+    subprocess.run(["git", "add", "bilinen_urunler.json", "yeni_urunler.log"], cwd=DIR)
+    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=DIR).returncode:
+        subprocess.run(["git", "commit", "-qm", "Yeni urunler"], cwd=DIR)
+        subprocess.run(["git", "pull", "-q", "--rebase"], cwd=DIR)
+        subprocess.run(["git", "push", "-q"], cwd=DIR)
+
+def loop(minutes, interval=60):
+    end = time.time() + minutes * 60
+    while time.time() < end:
+        start = time.time()
+        try:
+            main()
+            if "--git" in sys.argv:
+                save_to_git()
+        except Exception as e:
+            print(f"{datetime.now():%H:%M} hata, sonraki turda tekrar denenecek: {e}", flush=True)
+        time.sleep(max(0, interval - (time.time() - start)))
+
 if __name__ == "__main__":
-    main()
+    if "--loop" in sys.argv:
+        loop(int(sys.argv[sys.argv.index("--loop") + 1]))
+    else:
+        main()
